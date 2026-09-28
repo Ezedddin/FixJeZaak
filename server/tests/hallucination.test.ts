@@ -80,18 +80,14 @@ describe('scenario 5: hallucination resistance is enforced structurally, not jus
   });
 
   it('explicitly instructs the model not to invent legal grounds when no knowledge source matches', async () => {
-    // "anders" is a genuinely unsupported case type: no rule set (so no
-    // blocking errors) and no knowledge source at all (so search_knowledge
-    // is guaranteed empty regardless of the query) — this isolates the
-    // "no source found" prompt path from the "bezwaartermijn" query always
-    // scoring a hit against the boete-specific knowledge stub.
+    // "anders" deliberately has no knowledge source at all, so the letter
+    // prompt is guaranteed to take the "no source found" path.
     const kase = await createTestCase({
       caseType: 'anders',
       facts: {
-        authority: { value: 'Gemeente Nergenshuizen', source: 'document', needsConfirmation: false },
-        offence: { value: 'een geheel verzonnen overtreding', source: 'document', needsConfirmation: false },
+        counterparty: { value: 'Stichting Nergenshuizen', source: 'document', needsConfirmation: false },
+        issue: { value: 'een geheel verzonnen geschil', source: 'user_provided', needsConfirmation: false },
         reference_number: { value: 'XYZ-000', source: 'document', needsConfirmation: false },
-        fine_amount: { value: 42, source: 'document', needsConfirmation: false },
       },
     });
 

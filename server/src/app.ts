@@ -6,6 +6,7 @@ import { actionsRouter } from './routes/actions.js';
 import { assessmentRouter } from './routes/assessment.js';
 import { bookingsRouter } from './routes/bookings.js';
 import { casesRouter } from './routes/cases.js';
+import { caseTypesRouter } from './routes/caseTypes.js';
 import { chatRouter } from './routes/chat.js';
 import { documentsRouter } from './routes/documents.js';
 import { intakeRouter } from './routes/intake.js';
@@ -29,6 +30,7 @@ app.use('/cases', actionsRouter);
 app.use('/cases', assessmentRouter);
 app.use('/intake', intakeRouter);
 app.use('/tools', toolsRouter);
+app.use('/case-types', caseTypesRouter);
 app.use('/', bookingsRouter);
 
 app.use(errorHandler);

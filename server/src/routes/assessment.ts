@@ -54,11 +54,11 @@ assessmentRouter.post('/:id/analysis', validateBody(analysisSchema), async (req,
   }
 });
 
-/** Drafts the objection deterministically through the generate_document tool
- * (rule-gated, confirmation-gated, knowledge-grounded) instead of asking the
- * chat agent and hoping it picks that tool. The result is always a pending
- * action that only the explicit /approve endpoint can advance. */
-assessmentRouter.post('/:id/objection', async (req, res, next) => {
+/** Drafts the case's letter deterministically through the generate_document
+ * tool (rule-gated, confirmation-gated, knowledge-grounded) instead of asking
+ * the chat agent and hoping it picks that tool. The result is always a
+ * pending action that only the explicit /approve endpoint can advance. */
+assessmentRouter.post('/:id/letter', async (req, res, next) => {
   try {
     if (!env.anthropicApiKey) {
       res.status(503).json({ error: 'ai_not_configured' });
@@ -70,7 +70,7 @@ assessmentRouter.post('/:id/objection', async (req, res, next) => {
       return;
     }
     const result = await generateDocumentTool.handler(
-      { caseId: kase.id, documentType: 'bezwaarschrift' },
+      { caseId: kase.id },
       { caseId: kase.id },
     );
     res.json(result);

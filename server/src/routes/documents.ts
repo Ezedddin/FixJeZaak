@@ -101,7 +101,7 @@ documentsRouter.post('/:id/documents', upload.single('file'), async (req, res, n
       return;
     }
 
-    const reply = summarizeExtraction(extraction.mergedFacts, extraction.fieldsNeedingConfirmation ?? []);
+    const reply = summarizeExtraction(kase.caseType, extraction.mergedFacts, extraction.fieldsNeedingConfirmation ?? []);
     await db.message.create({ data: { caseId: kase.id, role: 'assistant', content: reply } });
 
     const updatedCase = await db.case.findUnique({

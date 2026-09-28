@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import { z } from 'zod';
 import { db } from '../../db.js';
 import { mergeFactsAndValidate } from '../facts.js';
-import { TRAFFIC_FINE_FIELD_KEYS, tierFor, type CaseFact } from '../../types.js';
+import { CASE_TYPES, caseTypeConfig } from '../../caseTypes/index.js';
+import { tierFor, type CaseFact } from '../../types.js';
 import { toJson } from '../../utils/json.js';
 import { buildDocumentContentBlock, callClaudeJSON } from '../claudeClient.js';
 import { ToolValidationError, type ToolDefinition } from './types.js';
@@ -15,12 +16,10 @@ interface RawExtraction {
   [key: string]: unknown;
 }
 
-const FIELD_LIST = TRAFFIC_FINE_FIELD_KEYS.join(', ');
-
 export const extractCaseInformationTool: ToolDefinition<Input> = {
   name: 'extract_case_information',
   description:
-    'Haal gestructureerde gegevens uit een reeds als leesbaar bevestigd document (bijv. gemeten snelheid, boetebedrag, kenmerk). Vul alleen in wat daadwerkelijk op het document staat — laat een veld leeg (null) als het er niet op staat, verzin niets. Geef bij elk ingevuld veld een confidence tussen 0 en 1.',
+    'Haal gestructureerde gegevens uit een reeds als leesbaar bevestigd document (bijv. instantie of wederpartij, bedrag, datum, kenmerk). Vul alleen in wat daadwerkelijk op het document staat — laat een veld leeg (null) als het er niet op staat, verzin niets. Geef bij elk ingevuld veld een confidence tussen 0 en 1.',
   inputSchema: {
     type: 'object',
     properties: { caseId: { type: 'string' }, documentId: { type: 'string' } },
@@ -32,8 +31,11 @@ export const extractCaseInformationTool: ToolDefinition<Input> = {
     return result.data;
   },
   async handler(input) {
-    const document = await db.document.findUnique({ where: { id: input.documentId } });
+    const document = await db.document.findUnique({ where: { id: input.documentId }, include: { case: true } });
     if (!document || document.caseId !== input.caseId) return { error: 'document_not_found' };
+    const config = caseTypeConfig(document.case.caseType) ?? CASE_TYPES.anders;
+    const fieldKeys = config.fields.map((f) => f.key);
+    const fieldList = config.fields.map((f) => `${f.key} (${f.label})`).join(', ');
 
     let base64: string;
     try {
@@ -46,12 +48,12 @@ export const extractCaseInformationTool: ToolDefinition<Input> = {
     let raw: RawExtraction;
     try {
       raw = await callClaudeJSON<RawExtraction>({
-        system: `Je haalt uitsluitend gegevens uit het document die daadwerkelijk zichtbaar zijn. Vul een veld nooit in op basis van aannames — laat het dan op null staan. Mogelijke velden: ${FIELD_LIST}. Antwoord als JSON object met deze velden (null waar niet aanwezig) plus een "confidence" object dat per ingevuld veld een getal tussen 0 en 1 geeft.`,
+        system: `Je haalt uitsluitend gegevens uit het document die daadwerkelijk zichtbaar zijn. Vul een veld nooit in op basis van aannames — laat het dan op null staan. Mogelijke velden: ${fieldList}. Datums als JJJJ-MM-DD waar mogelijk; bedragen en snelheden als getal zonder eenheid. Antwoord als JSON object met deze velden (null waar niet aanwezig) plus een "confidence" object dat per ingevuld veld een getal tussen 0 en 1 geeft.`,
         content: [
           buildDocumentContentBlock(document.mimeType, base64),
           {
             type: 'text',
-            text: 'Dit is een Nederlandse verkeers- of parkeerboete. Haal de gevraagde velden eruit.',
+            text: `Dit is ${config.documentDescription}. Haal de gevraagde velden eruit.`,
           },
         ],
         maxTokens: 700,
@@ -61,7 +63,7 @@ export const extractCaseInformationTool: ToolDefinition<Input> = {
     }
 
     const newFacts: Record<string, CaseFact> = {};
-    for (const key of TRAFFIC_FINE_FIELD_KEYS) {
+    for (const key of fieldKeys) {
       const value = raw[key];
       if (value === null || value === undefined || value === '') continue;
       const confidence = raw.confidence?.[key] ?? 0.5;

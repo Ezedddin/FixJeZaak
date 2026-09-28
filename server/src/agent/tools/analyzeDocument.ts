@@ -56,7 +56,7 @@ export const analyzeDocumentTool: ToolDefinition<Input> = {
           buildDocumentContentBlock(document.mimeType, base64),
           {
             type: 'text',
-            text: 'Is dit document leesbaar? Wat voor soort document is dit (bijvoorbeeld: verkeersboete, parkeerboete, brief, onbekend)? Geef een korte, feitelijke notitie.',
+            text: 'Is dit document leesbaar? Wat voor soort document is dit (bijvoorbeeld: verkeersboete, besluit van de overheid, brief van werkgever, huurcontract, factuur, aanmaning, onbekend)? Geef een korte, feitelijke notitie.',
           },
         ],
         maxTokens: 300,

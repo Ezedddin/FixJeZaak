@@ -1,3 +1,4 @@
+import { caseTypeConfig } from '../caseTypes/index.js';
 import { db } from '../db.js';
 import { runRules } from '../rules/engine.js';
 import type { CaseFact, CaseFacts } from '../types.js';
@@ -23,14 +24,16 @@ export async function mergeFactsAndValidate(
   return { facts: merged, ruleFlags };
 }
 
-const NUMERIC_FIELDS = new Set(['fine_amount', 'measured_speed', 'allowed_speed', 'corrected_speed']);
-
 /** Turns user-typed text like "€ 78,30" or "104 km/u" into a number for the
  * fields the rules do arithmetic on; anything unparseable stays as text so
  * the rules simply skip it rather than validate a wrong number. */
-function normalizeValue(key: string, value: string | number): string | number {
-  if (!NUMERIC_FIELDS.has(key) || typeof value === 'number') return value;
-  const match = value.replace(/\./g, '').replace(',', '.').match(/-?\d+(\.\d+)?/);
+function normalizeValue(caseType: string, key: string, value: string | number): string | number {
+  const kind = caseTypeConfig(caseType)?.fields.find((f) => f.key === key)?.kind;
+  if (kind !== 'number' || typeof value === 'number') return value;
+  // Dutch notation ("1.078,30") uses dots for thousands; without a comma a
+  // dot is read as the decimal point ("78.30").
+  const normalized = value.includes(',') ? value.replace(/\./g, '').replace(',', '.') : value;
+  const match = normalized.match(/-?\d+(\.\d+)?/);
   return match ? Number(match[0]) : value;
 }
 
@@ -47,7 +50,7 @@ export async function confirmFacts(caseId: string, values: Record<string, string
   const confirmed: Record<string, CaseFact> = {};
   for (const [key, rawValue] of Object.entries(values)) {
     if (rawValue === '') continue;
-    const value = normalizeValue(key, rawValue);
+    const value = normalizeValue(kase.caseType, key, rawValue);
     const previous = existing[key];
     confirmed[key] =
       previous && String(previous.value) === String(value)

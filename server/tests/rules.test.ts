@@ -29,7 +29,7 @@ describe('deterministic rule engine — missing fields (scenario 2)', () => {
   });
 
   it('returns an info flag instead of inventing rules for an unsupported case type', () => {
-    const flags = runRules('werk', {});
+    const flags = runRules('ruimtevaart', {});
     expect(flags).toEqual([
       expect.objectContaining({ code: 'unsupported_case_type', severity: 'info' }),
     ]);

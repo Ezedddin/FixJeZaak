@@ -76,11 +76,11 @@ describe('POST /cases/:id/facts/confirm', () => {
   });
 });
 
-describe('POST /cases/:id/objection', () => {
+describe('POST /cases/:id/letter', () => {
   it('refuses while fields are unconfirmed, and drafts a pending action after confirmation', async () => {
     const kase = await createTestCase({ facts: MEDIUM_CONFIDENCE_FACTS });
 
-    const refused = await supertest(app).post(`/cases/${kase.id}/objection`);
+    const refused = await supertest(app).post(`/cases/${kase.id}/letter`);
     expect(refused.body).toMatchObject({ generated: false, reason: 'unconfirmed_fields' });
     expect(createMock).not.toHaveBeenCalled();
 
@@ -89,7 +89,7 @@ describe('POST /cases/:id/objection', () => {
       .send({ facts: { authority: 'CJIB', fine_amount: '240' } });
 
     createMock.mockResolvedValueOnce(claudeJsonResponse({ paragraphs: ['Geachte heer/mevrouw,', 'Met vriendelijke groet,'] }));
-    const drafted = await supertest(app).post(`/cases/${kase.id}/objection`);
+    const drafted = await supertest(app).post(`/cases/${kase.id}/letter`);
 
     expect(drafted.body.generated).toBe(true);
     const action = await db.action.findUniqueOrThrow({ where: { id: drafted.body.actionId } });

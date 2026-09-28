@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { db } from '../db.js';
-import { searchKnowledge } from '../knowledge/index.js';
+import { CASE_TYPES, caseTypeConfig } from '../caseTypes/index.js';
+import { knowledgeFor } from '../knowledge/index.js';
 import { runRules } from '../rules/engine.js';
 import type { CaseFacts, KnowledgeResult, RuleResult } from '../types.js';
 import { callClaudeJSON } from './claudeClient.js';
@@ -44,19 +45,19 @@ export async function assessCase(
   const facts = (kase.facts as CaseFacts | null) ?? {};
   const ruleFlags = runRules(kase.caseType, facts);
   const hasBlockingErrors = ruleFlags.some((r) => r.severity === 'error');
-  const authority = (facts.authority?.value as string | undefined) ?? '';
-  const sources = await searchKnowledge(`bezwaartermijn ${authority}`, kase.caseType);
+  const config = caseTypeConfig(kase.caseType) ?? CASE_TYPES.anders;
+  const sources = knowledgeFor(kase.caseType);
 
   const raw = await callClaudeJSON<unknown>({
-    system: `Je bent de juridisch analist van FixJeZaak. Je geeft een nuchtere inschatting van hoe sterk een bezwaar lijkt, UITSLUITEND op basis van de meegegeven feiten, regel-uitkomsten en kennisbronnen.
-- Noem in "inFavor" en "potentialIssues" alleen punten die direct volgen uit de feiten, de regel-uitkomsten of het verhaal van de gebruiker. Verzin geen feiten, wetsartikelen of bezwaargronden.
+    system: `Je bent de juridisch analist van FixJeZaak. Je geeft een nuchtere inschatting van hoe sterk de positie van de gebruiker lijkt in deze zaak (${config.label.toLowerCase()}), UITSLUITEND op basis van de meegegeven feiten, regel-uitkomsten en kennisbronnen.
+- Noem in "inFavor" en "potentialIssues" alleen punten die direct volgen uit de feiten, de regel-uitkomsten of het verhaal van de gebruiker. Verzin geen feiten, wetsartikelen of juridische gronden.
 - Als er regel-uitkomsten met severity "error" zijn of cruciale gegevens ontbreken, is de strength "onvoldoende_informatie".
 - Gebruik geen percentages en geef geen garanties over de uitkomst.
-- "advice" is één korte aanbevolen vervolgstap.
+- "advice" is één korte aanbevolen vervolgstap; de app kan een ${config.letter.title.toLowerCase()} voor de gebruiker opstellen.
 Antwoord als JSON: {"strength": ${STRENGTHS.map((s) => `"${s}"`).join(' | ')}, "summary": string, "inFavor": string[], "potentialIssues": string[], "counterArgument": string, "advice": string}.`,
-    content: `Zaaktype: ${kase.caseType}
+    content: `Zaaktype: ${config.label}
 Verhaal van de gebruiker: ${input.description?.trim() || 'niet opgegeven'}
-Heeft de gebruiker aanvullend bewijs (bijv. betalingsbewijs): ${input.hasEvidence ? 'ja' : 'nee'}
+Heeft de gebruiker aanvullend bewijs (bijv. een betalingsbewijs, foto's of correspondentie): ${input.hasEvidence ? 'ja' : 'nee'}
 
 Feiten van de zaak:
 ${describeFacts(facts)}

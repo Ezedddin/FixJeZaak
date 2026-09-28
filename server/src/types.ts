@@ -45,33 +45,3 @@ export interface KnowledgeResult {
   sourceUrl: string;
   sourceName: string;
 }
-
-/** The structured extraction schema for a Dutch traffic/parking fine.
- * Fields are optional because not every authority/document provides all of
- * them (a CJIB speeding ticket has measured/allowed speed; a municipal
- * parking naheffingsaanslag has a rate/kenmerk instead). */
-export interface TrafficFineExtraction {
-  authority?: string; // e.g. "CJIB" or "Gemeente Amsterdam"
-  offence?: string; // e.g. "speeding" or "parking_without_payment"
-  date?: string;
-  location?: string;
-  measured_speed?: number;
-  allowed_speed?: number;
-  corrected_speed?: number;
-  fine_amount?: number;
-  reference_number?: string;
-  objection_deadline?: string;
-}
-
-export const TRAFFIC_FINE_FIELD_KEYS: (keyof TrafficFineExtraction)[] = [
-  'authority',
-  'offence',
-  'date',
-  'location',
-  'measured_speed',
-  'allowed_speed',
-  'corrected_speed',
-  'fine_amount',
-  'reference_number',
-  'objection_deadline',
-];

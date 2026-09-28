@@ -1,12 +1,20 @@
+import { CASE_TYPES } from '../caseTypes/index.js';
 import type { CaseFacts, RuleResult } from '../types.js';
+import { collectionCostsWithinLimit, genericRules, objectionPeriodFromDecisionDate } from './generic.js';
 import { trafficFineRules } from './trafficFines/index.js';
 import type { Rule } from './types.js';
 
-/** Registry of rule sets per case type. Adding a new case type (parking,
- * tax, subscriptions, consumer rights, ...) means adding one entry here and
- * a new `rules/<caseType>/index.ts` — nothing else in the agent changes. */
+/** Rule sets per case type. Traffic fines keep their dedicated set (speed
+ * checks etc.); every other type gets the generic rules from its field
+ * definitions plus any type-specific checks. */
 const RULES_BY_CASE_TYPE: Record<string, Rule[]> = {
   boete: trafficFineRules,
+  overheid: [...genericRules(CASE_TYPES.overheid), objectionPeriodFromDecisionDate],
+  werk: genericRules(CASE_TYPES.werk),
+  wonen: genericRules(CASE_TYPES.wonen),
+  aankopen: genericRules(CASE_TYPES.aankopen),
+  geld: [...genericRules(CASE_TYPES.geld), collectionCostsWithinLimit],
+  anders: genericRules(CASE_TYPES.anders),
 };
 
 export function runRules(caseType: string, facts: CaseFacts): RuleResult[] {

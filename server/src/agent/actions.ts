@@ -4,7 +4,7 @@ import { toJson } from '../utils/json.js';
 /** Action types the agent is currently allowed to prepare. Extend this
  * allowlist when adding new consequential actions (submit_objection,
  * send_email, ...) — the agent can never invent a new action type. */
-export const ALLOWED_ACTION_TYPES = ['prepare_objection'] as const;
+export const ALLOWED_ACTION_TYPES = ['prepare_objection', 'prepare_letter'] as const;
 export type ActionType = (typeof ALLOWED_ACTION_TYPES)[number];
 
 /**
