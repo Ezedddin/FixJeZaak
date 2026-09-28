@@ -6,6 +6,7 @@ import { RecommendationCard } from '@/components/case';
 import { Button, ScreenHeader } from '@/components/ui';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { caseService } from '@/services/caseService';
+import { useCaseType } from '@/services/caseTypes';
 import { selectCaseById, useCasesStore } from '@/store/casesStore';
 import { useIntakeStore } from '@/store/intakeStore';
 import type { RecommendedAction } from '@/types';
@@ -14,6 +15,8 @@ export default function StrategyScreen() {
   const router = useRouter();
   const caseId = useIntakeStore((state) => state.caseId);
   const title = useIntakeStore((state) => state.title);
+  const category = useIntakeStore((state) => state.category);
+  const { info } = useCaseType(category);
   const extractedFields = useIntakeStore((state) => state.extractedFields);
   const recommendedActions = useIntakeStore((state) => state.recommendedActions);
   const selectAction = useIntakeStore((state) => state.selectAction);
@@ -35,6 +38,10 @@ export default function StrategyScreen() {
   async function handleSelect(action: RecommendedAction) {
     if (!caseId || generating) return;
 
+    if (action.type === 'jurist_meekijken') {
+      router.push('/help/booking');
+      return;
+    }
     if (action.type !== 'bezwaar') return;
 
     selectAction(action.id);
@@ -42,11 +49,11 @@ export default function StrategyScreen() {
     setGenerating(true);
     setError(null);
 
-    const kenmerk = fieldValue('reference_number');
+    const kenmerk = info?.referenceField ? fieldValue(info.referenceField)?.trim() || undefined : undefined;
     const result = await caseService.generateLegalDocument({
       caseId,
-      counterparty: fieldValue('authority') ?? 'de instantie',
-      subject: `Bezwaar ${title}${kenmerk ? ` — kenmerk ${kenmerk}` : ''}`,
+      caseType: category ?? 'anders',
+      subject: `${title}${kenmerk ? ` — kenmerk ${kenmerk}` : ''}`,
       reference: kenmerk,
       // Only facts the user confirmed — never the analysis' own arguments.
       facts: extractedFields.filter((f) => f.value.trim()).map((f) => `${f.label}: ${f.value}`),

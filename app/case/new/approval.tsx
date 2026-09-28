@@ -91,7 +91,7 @@ export default function FinalApprovalScreen() {
 
       <ConfirmationModal
         visible={confirmVisible}
-        title="Bezwaar goedkeuren"
+        title={`${generatedDocument.title} goedkeuren`}
         description={`Je keurt deze brief aan ${generatedDocument.recipient} goed. FixJeZaak verstuurt hem niet zelf: je kunt hem hierna delen of kopiëren en zelf versturen.`}
         confirmLabel="Goedkeuren"
         loading={submitting}

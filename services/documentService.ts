@@ -5,7 +5,8 @@ import type {
   LegalDocument,
 } from '@/types';
 import { generateId } from '@/utils/id';
-import { backendClient, type BackendCaseFacts } from './backendClient';
+import { backendClient, type BackendCaseFacts, type CaseTypeInfo } from './backendClient';
+import { loadCaseType } from './caseTypes';
 
 interface CreateDocumentInput {
   name: string;
@@ -49,48 +50,37 @@ const UNREADABLE_MESSAGE =
 const UNAVAILABLE_MESSAGE =
   'Je document kan op dit moment niet worden geanalyseerd. Controleer je internetverbinding en probeer het opnieuw.';
 
-const DOCUMENT_FIELD_LABELS: Record<string, string> = {
-  authority: 'Instantie',
-  offence: 'Overtreding',
-  date: 'Datum',
-  location: 'Locatie',
-  measured_speed: 'Gemeten snelheid',
-  allowed_speed: 'Toegestane snelheid',
-  corrected_speed: 'Gecorrigeerde snelheid',
-  fine_amount: 'Bedrag',
-  reference_number: 'Kenmerk',
-  objection_deadline: 'Deadline bezwaar',
-};
-
-/** Builds the review list: trusted facts plus the low-confidence fields the
- * backend withheld from the case. Those are shown too (flagged) so the user
- * can confirm or correct them — confirming is what makes them trusted. */
-export function fieldLabel(key: string): string {
-  return DOCUMENT_FIELD_LABELS[key] ?? key;
-}
-
-function toExtractedFields(
-  facts: BackendCaseFacts,
-  extracted: Record<string, unknown> = {},
-  lowConfidenceKeys: string[] = [],
+/**
+ * Builds the review list for a case type: every field the category uses, in
+ * its order. Values come from the backend's trusted facts, then from the
+ * low-confidence extraction the backend withheld (flagged, so the user checks
+ * them), and "issue" falls back to the user's own description. Anything else
+ * stays empty for the user to fill in.
+ */
+export function buildReviewFields(
+  info: CaseTypeInfo,
+  options: {
+    facts?: BackendCaseFacts;
+    extracted?: Record<string, unknown>;
+    lowConfidenceKeys?: string[];
+    description?: string;
+  } = {},
 ): ExtractedField[] {
-  const trusted = Object.entries(facts).map(([key, fact]) => ({
-    key,
-    label: DOCUMENT_FIELD_LABELS[key] ?? key,
-    value: String(fact.value),
-    editable: true,
-    needsConfirmation: fact.needsConfirmation,
-  }));
-  const withheld = lowConfidenceKeys
-    .filter((key) => !(key in facts) && extracted[key] !== null && extracted[key] !== undefined)
-    .map((key) => ({
-      key,
-      label: DOCUMENT_FIELD_LABELS[key] ?? key,
-      value: String(extracted[key]),
-      editable: true,
-      needsConfirmation: true,
-    }));
-  return [...trusted, ...withheld];
+  const { facts = {}, extracted = {}, lowConfidenceKeys = [], description } = options;
+  return info.fields.map((field) => {
+    const fact = facts[field.key];
+    if (fact) {
+      return { key: field.key, label: field.label, value: String(fact.value), editable: true, needsConfirmation: fact.needsConfirmation };
+    }
+    const withheld = extracted[field.key];
+    if (lowConfidenceKeys.includes(field.key) && withheld !== null && withheld !== undefined) {
+      return { key: field.key, label: field.label, value: String(withheld), editable: true, needsConfirmation: true };
+    }
+    if (field.key === 'issue' && description?.trim()) {
+      return { key: field.key, label: field.label, value: description.trim(), editable: true, needsConfirmation: true };
+    }
+    return { key: field.key, label: field.label, value: '', editable: true };
+  });
 }
 
 /**
@@ -101,13 +91,14 @@ function toExtractedFields(
  */
 async function analyzeDocumentImage(
   input: DocumentImageInput,
-  backendCaseId: string | undefined,
+  context: { backendCaseId?: string; caseType: string; description?: string },
 ): Promise<DocumentAnalysisOutcome> {
-  if (!backendCaseId) return { ok: false, reason: 'unavailable', message: UNAVAILABLE_MESSAGE };
+  const info = await loadCaseType(context.caseType);
+  if (!context.backendCaseId || !info) return { ok: false, reason: 'unavailable', message: UNAVAILABLE_MESSAGE };
 
   let result;
   try {
-    result = await backendClient.uploadDocument(backendCaseId, {
+    result = await backendClient.uploadDocument(context.backendCaseId, {
       base64: input.base64,
       mimeType: input.mediaType,
       filename: input.filename ?? `document.${input.mediaType === 'application/pdf' ? 'pdf' : 'jpg'}`,
@@ -117,17 +108,22 @@ async function analyzeDocumentImage(
   }
 
   if (!result.analysis) return { ok: false, reason: 'unavailable', message: UNAVAILABLE_MESSAGE };
-  if (!result.analysis.readable || !result.extraction?.mergedFacts) {
+  const extraction = result.extraction;
+  if (!result.analysis.readable || !extraction?.mergedFacts) {
     return { ok: false, reason: 'unreadable', message: UNREADABLE_MESSAGE };
   }
 
-  const fields = toExtractedFields(
-    result.extraction.mergedFacts,
-    result.extraction.extracted,
-    result.extraction.lowConfidenceFieldsNotYetTrusted,
+  const readAnything = info.fields.some(
+    (f) => extraction.mergedFacts![f.key] || (extraction.lowConfidenceFieldsNotYetTrusted ?? []).includes(f.key),
   );
-  if (fields.length === 0) return { ok: false, reason: 'unreadable', message: UNREADABLE_MESSAGE };
+  if (!readAnything) return { ok: false, reason: 'unreadable', message: UNREADABLE_MESSAGE };
 
+  const fields = buildReviewFields(info, {
+    facts: extraction.mergedFacts,
+    extracted: extraction.extracted,
+    lowConfidenceKeys: extraction.lowConfidenceFieldsNotYetTrusted,
+    description: context.description,
+  });
   return { ok: true, documentTitle: result.analysis.documentType, fields };
 }
 

@@ -6,6 +6,7 @@ import { AnalysisSection, CaseStrengthBadge } from '@/components/case';
 import { BottomSheet, Button, ScreenHeader } from '@/components/ui';
 import { colors, spacing, typography } from '@/constants/theme';
 import { caseService } from '@/services/caseService';
+import { useCaseType } from '@/services/caseTypes';
 import { useCasesStore } from '@/store/casesStore';
 import { useIntakeStore } from '@/store/intakeStore';
 
@@ -13,6 +14,8 @@ export default function CaseAnalysisScreen() {
   const router = useRouter();
   const caseId = useIntakeStore((state) => state.caseId);
   const analysis = useIntakeStore((state) => state.analysis);
+  const category = useIntakeStore((state) => state.category);
+  const { info } = useCaseType(category);
   const setRecommendedActions = useIntakeStore((state) => state.setRecommendedActions);
   const storeSetRecommendedActions = useCasesStore((state) => state.setRecommendedActions);
   const patchCase = useCasesStore((state) => state.patchCase);
@@ -25,10 +28,10 @@ export default function CaseAnalysisScreen() {
 
   function handleContinue() {
     if (!caseId) return;
-    const actions = caseService.getRecommendedActions();
+    const actions = caseService.getRecommendedActions(info?.letterTitle ?? 'Brief');
     setRecommendedActions(actions);
     storeSetRecommendedActions(caseId, actions);
-    patchCase(caseId, { nextAction: 'Kies een aanpak voor je bezwaar' });
+    patchCase(caseId, { nextAction: 'Kies een aanpak voor je zaak' });
     router.push('/case/new/strategy');
   }
 
@@ -68,7 +71,7 @@ export default function CaseAnalysisScreen() {
           {sources.length === 0 ? (
             <Text style={styles.sheetText}>
               We hebben geen betrouwbare bron gevonden voor deze zaak. De analyse is daarom alleen
-              gebaseerd op de gegevens van je boete.
+              gebaseerd op de gegevens van je zaak.
             </Text>
           ) : (
             sources.map((source) => (

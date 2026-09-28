@@ -178,12 +178,28 @@ async function analyzeCase(
   return request(`/cases/${caseId}/analysis`, { method: 'POST', body: JSON.stringify(input) });
 }
 
-export type BackendObjectionResult =
-  | { generated: true; actionId: string; paragraphs: string[] }
+export type BackendLetterResult =
+  | { generated: true; actionId: string; title: string; recipient: string; paragraphs: string[] }
   | { generated: false; reason: string; fields?: string[]; ruleFlags?: BackendRuleResult[] };
 
-async function generateObjection(caseId: string): Promise<BackendObjectionResult> {
-  return request(`/cases/${caseId}/objection`, { method: 'POST' });
+async function generateLetter(caseId: string): Promise<BackendLetterResult> {
+  return request(`/cases/${caseId}/letter`, { method: 'POST' });
+}
+
+export interface CaseTypeInfo {
+  id: string;
+  label: string;
+  documentHint: string;
+  fields: Array<{ key: string; label: string; kind: 'text' | 'number' | 'date' }>;
+  requiredFields: string[];
+  recipientField: string;
+  referenceField: string | null;
+  deadlineField: string | null;
+  letterTitle: string;
+}
+
+async function getCaseType(caseType: string): Promise<CaseTypeInfo> {
+  return request(`/case-types/${caseType}`);
 }
 
 async function classifyIntake(text: string): Promise<{ category: string; title: string }> {
@@ -288,7 +304,8 @@ export const backendClient = {
   uploadDocument,
   confirmFacts,
   analyzeCase,
-  generateObjection,
+  generateLetter,
+  getCaseType,
   classifyIntake,
   listProfessionals,
   createBooking,

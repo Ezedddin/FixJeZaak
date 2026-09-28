@@ -140,10 +140,10 @@ export const useCasesStore = create<CasesState>()(
                       id: generateId('evt'),
                       type: 'notitie',
                       date: new Date().toISOString(),
-                      title: 'Bezwaar goedgekeurd',
+                      title: `${c.generatedDocument.title} goedgekeurd`,
                     },
                   ],
-                  nextAction: `Verstuur je bezwaar naar ${c.generatedDocument.recipient}`,
+                  nextAction: `Verstuur je brief naar ${c.generatedDocument.recipient}`,
                 })
               : c,
           ),
@@ -169,7 +169,7 @@ export const useCasesStore = create<CasesState>()(
                 : c.generatedDocument,
               timeline: [
                 ...c.timeline,
-                { id: generateId('evt'), type: 'verzonden', date: now, title: 'Bezwaar verstuurd' },
+                { id: generateId('evt'), type: 'verzonden', date: now, title: 'Brief verstuurd' },
                 { id: generateId('evt'), type: 'notitie', date: now, title: 'Wachten op reactie' },
               ],
               nextAction: 'Wacht op de reactie van de instantie',

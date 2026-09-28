@@ -8,10 +8,11 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DocumentCard } from '@/components/document/DocumentCard';
 import { UploadCard } from '@/components/document/UploadCard';
-import { ScreenHeader } from '@/components/ui';
+import { Button, ScreenHeader } from '@/components/ui';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 import { caseService } from '@/services/caseService';
-import { documentService, READABLE_DOCUMENT_TYPES } from '@/services/documentService';
+import { useCaseType } from '@/services/caseTypes';
+import { buildReviewFields, documentService, READABLE_DOCUMENT_TYPES } from '@/services/documentService';
 import { selectCaseById, useCasesStore } from '@/store/casesStore';
 import { useIntakeStore } from '@/store/intakeStore';
 import type { LegalDocument } from '@/types';
@@ -19,6 +20,9 @@ import type { LegalDocument } from '@/types';
 export default function UploadDocumentScreen() {
   const router = useRouter();
   const caseId = useIntakeStore((state) => state.caseId);
+  const category = useIntakeStore((state) => state.category);
+  const description = useIntakeStore((state) => state.description);
+  const { info } = useCaseType(category);
   const setUploadedDocument = useIntakeStore((state) => state.setUploadedDocument);
   const setExtractedFields = useIntakeStore((state) => state.setExtractedFields);
   const addDocument = useCasesStore((state) => state.addDocument);
@@ -50,7 +54,10 @@ export default function UploadDocumentScreen() {
       if (backendCaseId) patchCase(caseId, { backendCaseId });
     }
 
-    const result = await documentService.analyzeDocumentImage({ ...image, filename: name }, backendCaseId);
+    const result = await documentService.analyzeDocumentImage(
+      { ...image, filename: name },
+      { backendCaseId, caseType: category ?? 'anders', description },
+    );
     setBusy(false);
     if (!result.ok) {
       setDocument(null);
@@ -69,6 +76,16 @@ export default function UploadDocumentScreen() {
     patchCase(caseId, { status: 'analysing' });
     setUploadedDocument(analyzedDoc);
     setExtractedFields(result.fields);
+    router.push('/case/new/document-analysis');
+  }
+
+  function handleNoDocument() {
+    if (!info) {
+      setError('De gegevens voor deze zaak konden niet worden geladen. Controleer je internetverbinding en probeer het opnieuw.');
+      return;
+    }
+    setUploadedDocument(null);
+    setExtractedFields(buildReviewFields(info, { description }));
     router.push('/case/new/document-analysis');
   }
 
@@ -105,7 +122,7 @@ export default function UploadDocumentScreen() {
     const asset = result.assets[0];
     const mediaType = asset.mimeType ?? '';
     if (!READABLE_DOCUMENT_TYPES.includes(mediaType)) {
-      setError('Dit bestandstype kunnen we niet lezen. Kies een foto (JPG of PNG) of een PDF van je boete.');
+      setError('Dit bestandstype kunnen we niet lezen. Kies een foto (JPG of PNG) of een PDF.');
       return;
     }
     const base64 = await readAsBase64(asset.uri);
@@ -118,7 +135,7 @@ export default function UploadDocumentScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Voeg je documenten toe" subtitle="Upload de beschikking van je boete." />
+      <ScreenHeader title="Voeg je documenten toe" subtitle={info?.documentHint ?? 'Upload de brief of het document waar het om gaat.'} />
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.cardsRow}>
@@ -133,6 +150,10 @@ export default function UploadDocumentScreen() {
         ) : null}
 
         {busy ? <Text style={styles.busyText}>We lezen je document…</Text> : null}
+
+        {!busy ? (
+          <Button label="Ik heb geen document" variant="secondary" onPress={handleNoDocument} />
+        ) : null}
 
         {document ? (
           <View style={styles.uploadedSection}>

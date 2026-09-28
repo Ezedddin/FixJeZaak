@@ -33,7 +33,7 @@ export default function DocumentPreviewScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Controleer je bezwaar" />
+      <ScreenHeader title={`Controleer je ${generatedDocument.title.toLowerCase()}`} />
 
       <View style={styles.tabRow}>
         {(['document', 'facts', 'attachments'] as Tab[]).map((t) => (

@@ -83,7 +83,7 @@ interface ScriptStep {
 const BOETE_SCRIPT: ScriptStep[] = [
   {
     id: 'betalingsbewijs',
-    question: 'Heb je een betalingsbewijs?',
+    question: "Heb je bewijs dat jouw kant ondersteunt, zoals een betalingsbewijs of foto's?",
     options: [
       { label: 'Ja', value: 'ja' },
       { label: 'Nee', value: 'nee' },

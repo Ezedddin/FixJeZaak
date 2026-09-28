@@ -143,30 +143,27 @@ export default function NewCaseIntakeScreen() {
   }
 
   function wrapUp(category: CaseCategory, caseId: string) {
-    const isBoete = category === 'boete';
+    const isContract = category === 'contract';
     intake.addChatMessage({
       id: generateId('msg'),
       sender: 'assistant',
-      text: isBoete
-        ? 'Bedankt! Ik ga nu je documenten bekijken zodat we je zaak verder kunnen onderbouwen.'
-        : 'Bedankt voor de informatie. We gaan hier voor je mee aan de slag.',
+      text: isContract
+        ? 'Bedankt! Upload je contract, dan lopen we de bepalingen voor je na.'
+        : 'Bedankt! Ik ga nu je documenten bekijken zodat we je zaak verder kunnen onderbouwen.',
       createdAt: new Date().toISOString(),
     });
-    if (!isBoete) {
-      patchCase(caseId, {
-        status: 'action_required',
-        nextAction: 'We nemen dit binnenkort met je door',
-      });
-    }
+    patchCase(caseId, { nextAction: isContract ? 'Laat je contract controleren' : 'Voeg je documenten toe' });
     setFinished(true);
   }
 
   function handleContinue() {
     if (!intake.category || !intake.caseId) return;
-    if (intake.category === 'boete') {
-      router.push('/case/new/upload');
+    // A contract question is answered by the contract review tool; every
+    // other category goes through the document → facts → letter flow.
+    if (intake.category === 'contract') {
+      router.push('/documents/contract-analysis');
     } else {
-      router.replace({ pathname: '/case/[id]', params: { id: intake.caseId } });
+      router.push('/case/new/upload');
     }
   }
 
@@ -200,7 +197,7 @@ export default function NewCaseIntakeScreen() {
       {finished ? (
         <View style={styles.footer}>
           <Button
-            label={intake.category === 'boete' ? 'Ga verder met documenten' : 'Ga naar mijn zaak'}
+            label={intake.category === 'contract' ? 'Contract uploaden' : 'Ga verder met documenten'}
             onPress={handleContinue}
           />
         </View>

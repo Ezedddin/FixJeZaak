@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
-import { SquarePen } from 'lucide-react-native';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Button, Card, ScreenHeader } from '@/components/ui';
 import { colors, radius, spacing, typography } from '@/constants/theme';
+import { caseService } from '@/services/caseService';
+import { useCaseType } from '@/services/caseTypes';
 import { documentService } from '@/services/documentService';
 import { selectCaseById, useCasesStore } from '@/store/casesStore';
 import { useIntakeStore } from '@/store/intakeStore';
@@ -12,69 +13,84 @@ import { useIntakeStore } from '@/store/intakeStore';
 export default function DocumentAnalysisScreen() {
   const router = useRouter();
   const caseId = useIntakeStore((state) => state.caseId);
+  const category = useIntakeStore((state) => state.category);
   const uploadedDocument = useIntakeStore((state) => state.uploadedDocument);
   const extractedFields = useIntakeStore((state) => state.extractedFields);
   const updateExtractedField = useIntakeStore((state) => state.updateExtractedField);
   const updateDocument = useCasesStore((state) => state.updateDocument);
-  const backendCaseId = useCasesStore(
-    (state) => selectCaseById(state.cases, caseId ?? undefined)?.backendCaseId,
-  );
+  const patchCase = useCasesStore((state) => state.patchCase);
+  const legalCase = useCasesStore((state) => selectCaseById(state.cases, caseId ?? undefined));
+  const { info } = useCaseType(category);
 
-  const [editing, setEditing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const required = new Set(info?.requiredFields ?? []);
 
   async function handleConfirm() {
-    if (confirming) return;
-    const confirmedFields = extractedFields.map((field) => ({ ...field, needsConfirmation: false }));
-    if (caseId && uploadedDocument) {
-      updateDocument(caseId, uploadedDocument.id, { extractedFields: confirmedFields });
+    if (confirming || !caseId) return;
+    const missing = extractedFields.filter((f) => required.has(f.key) && !f.value.trim());
+    if (missing.length > 0) {
+      setError(`Vul nog in: ${missing.map((f) => f.label).join(', ')}.`);
+      return;
     }
-    // The backend only drafts an objection from confirmed facts, so the
-    // user's review (including edits) has to reach it before moving on.
-    if (backendCaseId) {
-      setConfirming(true);
-      await documentService.confirmExtractedFields(backendCaseId, extractedFields);
-      setConfirming(false);
+    setError(null);
+    setConfirming(true);
+
+    let backendCaseId = legalCase?.backendCaseId;
+    if (!backendCaseId && legalCase) {
+      backendCaseId = await caseService.linkBackendCase(legalCase);
+      if (backendCaseId) patchCase(caseId, { backendCaseId });
+    }
+    // The backend only drafts a letter from confirmed facts, so the user's
+    // review (including edits) has to reach it before moving on.
+    const saved = backendCaseId
+      ? await documentService.confirmExtractedFields(backendCaseId, extractedFields)
+      : false;
+    setConfirming(false);
+    if (!saved) {
+      setError('Je gegevens konden niet worden opgeslagen. Controleer je internetverbinding en probeer het opnieuw.');
+      return;
+    }
+
+    const confirmedFields = extractedFields.map((field) => ({ ...field, needsConfirmation: false }));
+    if (uploadedDocument) {
+      updateDocument(caseId, uploadedDocument.id, { extractedFields: confirmedFields });
     }
     router.push('/case/new/missing-evidence');
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScreenHeader
-        title={uploadedDocument?.documentTitle ?? 'Documentanalyse'}
-        subtitle="Controleer of deze gegevens kloppen."
+        title={uploadedDocument?.documentTitle ?? 'Gegevens van je zaak'}
+        subtitle={uploadedDocument ? 'Controleer of deze gegevens kloppen en vul aan wat ontbreekt.' : 'Vul de gegevens van je zaak in.'}
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Card style={styles.card}>
           {extractedFields.map((field) => (
             <View key={field.key} style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>
                 {field.label}
+                {required.has(field.key) ? ' *' : ''}
                 {field.needsConfirmation ? <Text style={styles.checkHint}>  · controleer dit</Text> : null}
               </Text>
-              {editing ? (
-                <TextInput
-                  style={styles.fieldInput}
-                  value={field.value}
-                  onChangeText={(value) => updateExtractedField(field.key, value)}
-                />
-              ) : (
-                <Text style={styles.fieldValue}>{field.value}</Text>
-              )}
+              <TextInput
+                style={[styles.fieldInput, field.key === 'issue' && styles.fieldInputMultiline]}
+                value={field.value}
+                multiline={field.key === 'issue'}
+                placeholder={required.has(field.key) ? 'Verplicht' : 'Optioneel'}
+                placeholderTextColor={colors.textTertiary}
+                onChangeText={(value) => updateExtractedField(field.key, value)}
+              />
             </View>
           ))}
         </Card>
 
-        <Button
-          label={editing ? 'Klaar met aanpassen' : 'Aanpassen'}
-          onPress={() => setEditing((prev) => !prev)}
-          variant="secondary"
-          icon={SquarePen}
-        />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
         <Button label="Gegevens kloppen" onPress={handleConfirm} loading={confirming} />
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -101,10 +117,6 @@ const styles = StyleSheet.create({
   checkHint: {
     color: colors.warning,
   },
-  fieldValue: {
-    ...typography.bodyMedium,
-    color: colors.textPrimary,
-  },
   fieldInput: {
     ...typography.bodyMedium,
     color: colors.textPrimary,
@@ -113,5 +125,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
     paddingVertical: 8,
+  },
+  fieldInputMultiline: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  error: {
+    ...typography.small,
+    color: colors.danger,
   },
 });

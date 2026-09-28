@@ -54,7 +54,7 @@ export default function CaseDashboardScreen() {
           {legalCase.status === 'action_required' && legalCase.generatedDocument?.status === 'goedgekeurd' ? (
             <>
               <Button
-                label="Deel je bezwaar"
+                label="Deel je brief"
                 onPress={() => {
                   const doc = legalCase.generatedDocument!;
                   const header = [`Aan: ${doc.recipient}`, `Betreft: ${doc.subject}`];

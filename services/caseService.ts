@@ -9,7 +9,7 @@ import type {
 } from '@/types';
 import { generateId } from '@/utils/id';
 import { backendClient } from './backendClient';
-import { fieldLabel } from './documentService';
+import { fieldLabelFor, loadCaseType } from './caseTypes';
 
 interface CreateCaseInput {
   category: CaseCategory;
@@ -98,27 +98,36 @@ async function analyzeCase(input: AnalyzeCaseInput): Promise<ServiceResult<Analy
   }
 }
 
-/** The approaches the app can actually carry out today. Options come back
- * here once they are real (e.g. a jurist review once booking exists). */
-function getRecommendedActions(): RecommendedAction[] {
+/** The approaches the app can actually carry out today: drafting the letter
+ * that fits the case type, or having one of the juristen look at it. */
+function getRecommendedActions(letterTitle: string): RecommendedAction[] {
   return [
     {
-      id: generateId('action_bezwaar'),
+      id: generateId('action_brief'),
       type: 'bezwaar',
-      title: 'Bezwaar opstellen',
-      description:
-        'FixJeZaak stelt een concept-bezwaar op met de gegevens die jij hebt bevestigd. Jij controleert het en keurt het goed.',
+      title: `${letterTitle} opstellen`,
+      description: `FixJeZaak stelt een concept op met de gegevens die jij hebt bevestigd. Jij controleert het en keurt het goed.`,
       recommended: true,
-      durationLabel: 'Beslistermijn verschilt per instantie',
-      requirementsLabel: 'Bevestigde gegevens van je boete',
-      ctaLabel: 'Stel bezwaar op',
+      durationLabel: 'Reactietermijn verschilt per wederpartij',
+      requirementsLabel: 'Bevestigde gegevens van je zaak',
+      ctaLabel: 'Stel concept op',
+    },
+    {
+      id: generateId('action_jurist'),
+      type: 'jurist_meekijken',
+      title: 'Jurist laten meekijken',
+      description: 'Vraag Hasan of Ezeddin om je zaak te bekijken voordat je verdergaat.',
+      recommended: false,
+      durationLabel: 'Afhankelijk van beschikbaarheid',
+      requirementsLabel: 'Je contactgegevens en je vraag',
+      ctaLabel: 'Vraag een jurist',
     },
   ];
 }
 
 interface GenerateDocumentInput {
   caseId: string;
-  counterparty: string;
+  caseType: string;
   subject: string;
   reference?: string;
   /** Confirmed case facts as "Label: waarde" lines, shown under "Gebruikte feiten". */
@@ -133,30 +142,32 @@ async function generateLegalDocument(
   input: GenerateDocumentInput,
 ): Promise<ServiceResult<GeneratedLegalDocument>> {
   if (!input.backendCaseId) return { ok: false, message: BACKEND_UNAVAILABLE };
+  const failed = 'Het opstellen van je brief is niet gelukt. Probeer het opnieuw.';
 
   let result;
   try {
-    result = await backendClient.generateObjection(input.backendCaseId);
+    result = await backendClient.generateLetter(input.backendCaseId);
   } catch {
-    return { ok: false, message: 'Het opstellen van je bezwaar is niet gelukt. Probeer het opnieuw.' };
+    return { ok: false, message: failed };
   }
 
   if (!result.generated) {
+    const info = await loadCaseType(input.caseType);
+    const label = (key: string) => fieldLabelFor(info, key);
     if (result.reason === 'unconfirmed_fields' && result.fields?.length) {
-      const labels = result.fields.map(fieldLabel).join(', ');
-      return { ok: false, message: `Bevestig eerst deze gegevens van je boete: ${labels}.` };
+      return { ok: false, message: `Bevestig eerst deze gegevens: ${result.fields.map(label).join(', ')}.` };
     }
     if (result.reason === 'blocking_rule_errors' && result.ruleFlags?.length) {
-      const missing = result.ruleFlags.filter((r) => r.field).map((r) => fieldLabel(r.field!));
+      const missing = result.ruleFlags.filter((r) => r.field).map((r) => label(r.field!));
       return {
         ok: false,
         message:
           missing.length > 0
-            ? `Er ontbreken nog gegevens om een bezwaar op te stellen: ${missing.join(', ')}. Upload een duidelijkere foto van je boete of vul ze aan.`
+            ? `Er ontbreken nog gegevens: ${missing.join(', ')}. Vul ze aan bij je gegevens.`
             : result.ruleFlags.map((r) => r.message).join(' '),
       };
     }
-    return { ok: false, message: 'Het opstellen van je bezwaar is niet gelukt. Probeer het opnieuw.' };
+    return { ok: false, message: failed };
   }
 
   return {
@@ -164,13 +175,13 @@ async function generateLegalDocument(
     value: {
       id: generateId('gendoc'),
       caseId: input.caseId,
-      title: 'Bezwaarschrift',
-      recipient: input.counterparty,
+      title: result.title,
+      recipient: result.recipient,
       subject: input.subject,
       reference: input.reference,
       paragraphs: result.paragraphs,
       usedFacts: input.facts,
-      attachments: ['Bezwaarschrift', 'Beschikking'],
+      attachments: [result.title],
       status: 'concept',
       createdAt: new Date().toISOString(),
       backendActionId: result.actionId,
