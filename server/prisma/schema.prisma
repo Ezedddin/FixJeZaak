@@ -60,6 +60,9 @@ model Document {
   filename    String
   mimeType    String
   storagePath String
+  // "case_document" (the letter/fine/contract the case is about), "evidence"
+  // (supporting material from the user) or "response" (the other party's reply).
+  kind        String   @default("case_document")
   // Raw extraction result for this specific document: fields + confidence +
   // provenance, before rule validation or merging into Case.facts.
   extracted   Json?

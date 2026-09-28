@@ -11,6 +11,14 @@ export const env = {
   port: Number(process.env.PORT) || 4000,
   corsOrigin: process.env.CORS_ORIGIN || '*',
   adminToken: process.env.ADMIN_TOKEN ?? '',
+  // E-mail via Resend (https://resend.com). Booking e-mails are skipped until
+  // RESEND_API_KEY and EMAIL_FROM are set.
+  resendApiKey: process.env.RESEND_API_KEY ?? '',
+  emailFrom: process.env.EMAIL_FROM ?? '',
+  juristEmails: {
+    jurist_hasan: process.env.JURIST_HASAN_EMAIL ?? '',
+    jurist_ezeddin: process.env.JURIST_EZEDDIN_EMAIL ?? '',
+  } as Record<string, string>,
 };
 
 if (!env.anthropicApiKey) {

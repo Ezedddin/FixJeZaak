@@ -35,6 +35,7 @@ export const getCaseTool: ToolDefinition<Input> = {
       documents: kase.documents.map((d) => ({
         id: d.id,
         filename: d.filename,
+        kind: d.kind,
         hasExtraction: d.extracted != null,
       })),
       actions: kase.actions.map((a) => ({ id: a.id, type: a.type, status: a.status })),

@@ -5,6 +5,7 @@ import { knowledgeFor } from '../knowledge/index.js';
 import { runRules } from '../rules/engine.js';
 import type { CaseFacts, KnowledgeResult, RuleResult } from '../types.js';
 import { callClaudeJSON } from './claudeClient.js';
+import { evidenceSummaries } from './evidence.js';
 
 const STRENGTHS = ['sterk', 'redelijk', 'zwak', 'onvoldoende_informatie'] as const;
 
@@ -47,6 +48,7 @@ export async function assessCase(
   const hasBlockingErrors = ruleFlags.some((r) => r.severity === 'error');
   const config = caseTypeConfig(kase.caseType) ?? CASE_TYPES.anders;
   const sources = knowledgeFor(kase.caseType);
+  const evidence = await evidenceSummaries(caseId);
 
   const raw = await callClaudeJSON<unknown>({
     system: `Je bent de juridisch analist van FixJeZaak. Je geeft een nuchtere inschatting van hoe sterk de positie van de gebruiker lijkt in deze zaak (${config.label.toLowerCase()}), UITSLUITEND op basis van de meegegeven feiten, regel-uitkomsten en kennisbronnen.
@@ -58,7 +60,7 @@ Antwoord als JSON: {"strength": ${STRENGTHS.map((s) => `"${s}"`).join(' | ')}, "
     content: `Zaaktype: ${config.label}
 Verhaal van de gebruiker: ${input.description?.trim() || 'niet opgegeven'}
 Heeft de gebruiker aanvullend bewijs (bijv. een betalingsbewijs, foto's of correspondentie): ${input.hasEvidence ? 'ja' : 'nee'}
-
+${evidence.length > 0 ? `Wat het geüploade bewijs laat zien:\n${evidence.map((e) => `- ${e}`).join('\n')}\n` : ''}
 Feiten van de zaak:
 ${describeFacts(facts)}
 

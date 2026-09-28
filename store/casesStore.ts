@@ -164,6 +164,8 @@ export const useCasesStore = create<CasesState>()(
             return touch({
               ...c,
               status: 'waiting_response',
+              // The deadline was for sending the letter; it no longer applies.
+              deadline: undefined,
               generatedDocument: c.generatedDocument
                 ? { ...c.generatedDocument, status: 'verzonden' }
                 : c.generatedDocument,

@@ -5,8 +5,16 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { CaseTimeline } from '@/components/case';
 import { Button, ScreenHeader } from '@/components/ui';
 import { colors, radius, spacing, typography } from '@/constants/theme';
+import type { CaseOutcome } from '@/types';
 import { selectCaseById, useCasesStore } from '@/store/casesStore';
 import { formatCurrency } from '@/utils/format';
+
+const OUTCOME_TITLES: Record<CaseOutcome, string> = {
+  gewonnen: 'Je verzoek is toegewezen',
+  deels: 'Je verzoek is deels toegewezen',
+  verloren: 'Je verzoek is afgewezen',
+  ingetrokken: 'De zaak is ingetrokken',
+};
 
 export default function CaseResolvedScreen() {
   const router = useRouter();
@@ -20,13 +28,17 @@ export default function CaseResolvedScreen() {
 
   return (
     <View style={styles.container}>
-      <ScreenHeader title="Zaak opgelost" />
+      <ScreenHeader title="Zaak afgerond" />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.successCard}>
-          <View style={styles.iconWrap}>
-            <PartyPopper size={26} color={colors.success} strokeWidth={2} />
-          </View>
-          <Text style={styles.resultTitle}>{resolutionEvent?.title ?? 'Zaak afgerond'}</Text>
+          {legalCase.outcome === 'gewonnen' || legalCase.outcome === 'deels' ? (
+            <View style={styles.iconWrap}>
+              <PartyPopper size={26} color={colors.success} strokeWidth={2} />
+            </View>
+          ) : null}
+          <Text style={styles.resultTitle}>
+            {legalCase.outcome ? OUTCOME_TITLES[legalCase.outcome] : resolutionEvent?.title ?? 'Zaak afgerond'}
+          </Text>
           {legalCase.amountSaved ? (
             <Text style={styles.amount}>{formatCurrency(legalCase.amountSaved)} bespaard</Text>
           ) : null}

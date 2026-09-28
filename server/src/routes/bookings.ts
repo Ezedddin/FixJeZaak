@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '../db.js';
 import { env } from '../env.js';
 import { validateBody } from '../middleware/validate.js';
+import { notifyJuristOfBooking } from '../notify.js';
 import { BOOKING_OPTIONS, PROFESSIONAL_IDS, PROFESSIONALS } from '../professionals.js';
 
 export const bookingsRouter = Router();
@@ -23,7 +24,10 @@ const createBookingSchema = z.object({
 
 bookingsRouter.post('/bookings', validateBody(createBookingSchema), async (req, res, next) => {
   try {
-    const booking = await db.booking.create({ data: req.body as z.infer<typeof createBookingSchema> });
+    const input = req.body as z.infer<typeof createBookingSchema>;
+    const booking = await db.booking.create({ data: input });
+    const professional = PROFESSIONALS.find((p) => p.id === input.professionalId)!;
+    void notifyJuristOfBooking({ ...input, professionalName: professional.name });
     res.status(201).json({ id: booking.id, status: booking.status });
   } catch (error) {
     next(error);

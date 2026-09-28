@@ -9,6 +9,7 @@ import { useCaseType } from '@/services/caseTypes';
 import { documentService } from '@/services/documentService';
 import { selectCaseById, useCasesStore } from '@/store/casesStore';
 import { useIntakeStore } from '@/store/intakeStore';
+import { parseDateInput } from '@/utils/date';
 
 export default function DocumentAnalysisScreen() {
   const router = useRouter();
@@ -52,6 +53,14 @@ export default function DocumentAnalysisScreen() {
       setError('Je gegevens konden niet worden opgeslagen. Controleer je internetverbinding en probeer het opnieuw.');
       return;
     }
+
+    const valueOf = (key: string | null | undefined) =>
+      key ? extractedFields.find((f) => f.key === key)?.value.trim() || undefined : undefined;
+    const deadline = parseDateInput(valueOf(info?.deadlineField) ?? '');
+    patchCase(caseId, {
+      counterparty: valueOf(info?.recipientField),
+      ...(deadline ? { deadline } : {}),
+    });
 
     const confirmedFields = extractedFields.map((field) => ({ ...field, needsConfirmation: false }));
     if (uploadedDocument) {

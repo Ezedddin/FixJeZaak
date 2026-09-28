@@ -281,6 +281,35 @@ async function roleplayTurn(
   return request('/tools/roleplay', { method: 'POST', body: JSON.stringify({ ...scenario, messages }) });
 }
 
+export interface ResponseAnalysis {
+  outcome: 'toegewezen' | 'deels_toegewezen' | 'afgewezen' | 'onduidelijk';
+  summary: string;
+  reasons: string[];
+  nextSteps: string[];
+  sources?: Array<{ title: string; snippet: string; sourceUrl: string; sourceName: string }>;
+}
+
+async function uploadCaseFile<T>(caseId: string, path: 'evidence' | 'response', file: UploadableFile): Promise<T> {
+  const blob = await (await fetch(`data:${file.mimeType};base64,${file.base64}`)).blob();
+  const form = new FormData();
+  form.append('file', blob, file.filename);
+  return request<T>(`/cases/${caseId}/${path}`, { method: 'POST', body: form });
+}
+
+async function uploadEvidence(
+  caseId: string,
+  file: UploadableFile,
+): Promise<{ readable: false } | { readable: true; documentId: string; summary: string }> {
+  return uploadCaseFile(caseId, 'evidence', file);
+}
+
+async function uploadResponse(
+  caseId: string,
+  file: UploadableFile,
+): Promise<{ readable: false } | ({ readable: true } & ResponseAnalysis)> {
+  return uploadCaseFile(caseId, 'response', file);
+}
+
 async function approveAction(
   caseId: string,
   actionId: string,
@@ -305,6 +334,8 @@ export const backendClient = {
   confirmFacts,
   analyzeCase,
   generateLetter,
+  uploadEvidence,
+  uploadResponse,
   getCaseType,
   classifyIntake,
   listProfessionals,

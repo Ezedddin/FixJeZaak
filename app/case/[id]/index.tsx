@@ -7,6 +7,8 @@ import { CaseTimeline } from '@/components/case';
 import { BottomSheet, Button, DeadlineBadge, ScreenHeader, StatusBadge } from '@/components/ui';
 import { DocumentCard } from '@/components/document/DocumentCard';
 import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
+import { backendClient } from '@/services/backendClient';
+import { pickReadableFile } from '@/services/filePicker';
 import { useCasesStore, selectCaseById } from '@/store/casesStore';
 import { caseStatusMeta } from '@/utils/caseStatus';
 
@@ -15,6 +17,10 @@ export default function CaseDashboardScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const cases = useCasesStore((state) => state.cases);
   const markSubmitted = useCasesStore((state) => state.submitCase);
+  const patchCase = useCasesStore((state) => state.patchCase);
+  const addTimelineEvent = useCasesStore((state) => state.addTimelineEvent);
+  const [uploadingResponse, setUploadingResponse] = useState(false);
+  const [responseError, setResponseError] = useState<string | null>(null);
   const legalCase = selectCaseById(cases, id);
   const [docsSheetVisible, setDocsSheetVisible] = useState(false);
 
@@ -24,6 +30,41 @@ export default function CaseDashboardScreen() {
         <ScreenHeader title="Zaak niet gevonden" />
       </View>
     );
+  }
+
+  async function handleResponse(source: 'camera' | 'file') {
+    if (!legalCase) return;
+    const picked = await pickReadableFile(source, 'Reactie');
+    if (!picked) return;
+    if (!picked.ok) {
+      setResponseError(picked.message);
+      return;
+    }
+    if (!legalCase.backendCaseId) {
+      setResponseError('De reactie kan nu niet worden verwerkt. Controleer je internetverbinding en probeer het opnieuw.');
+      return;
+    }
+    setUploadingResponse(true);
+    setResponseError(null);
+    try {
+      const result = await backendClient.uploadResponse(legalCase.backendCaseId, picked.file);
+      if (!result.readable) {
+        setResponseError('We konden de reactie niet goed lezen. Maak een duidelijkere foto of upload een PDF.');
+        return;
+      }
+      const { readable: _readable, ...analysis } = result;
+      patchCase(legalCase.id, {
+        status: 'response_received',
+        responseAnalysis: analysis,
+        nextAction: 'Bekijk de reactie en bepaal je volgende stap',
+      });
+      addTimelineEvent(legalCase.id, { type: 'reactie', date: new Date().toISOString(), title: 'Reactie ontvangen' });
+      router.push({ pathname: '/case/[id]/response', params: { id: legalCase.id } });
+    } catch {
+      setResponseError('De reactie kon niet worden geüpload. Controleer je internetverbinding en probeer het opnieuw.');
+    } finally {
+      setUploadingResponse(false);
+    }
   }
 
   const statusMeta = caseStatusMeta(legalCase.status);
@@ -38,7 +79,7 @@ export default function CaseDashboardScreen() {
           {legalCase.deadline ? (
             <View style={styles.deadlineRow}>
               <Text style={styles.deadlineLabel}>
-                {legalCase.status === 'waiting_response' ? 'Reactie verwacht' : 'Deadline'}
+                Deadline
               </Text>
               <DeadlineBadge deadline={legalCase.deadline} />
             </View>
@@ -70,6 +111,22 @@ export default function CaseDashboardScreen() {
                 variant="secondary"
                 onPress={() => markSubmitted(legalCase.id)}
               />
+            </>
+          ) : null}
+          {legalCase.status === 'waiting_response' ? (
+            <>
+              <Text style={styles.nextActionText}>Reactie ontvangen? Voeg hem toe, dan lezen we hem voor je.</Text>
+              <Button
+                label="Foto van de reactie"
+                loading={uploadingResponse}
+                onPress={() => handleResponse('camera')}
+              />
+              <Button
+                label="Kies een bestand"
+                variant="secondary"
+                onPress={() => handleResponse('file')}
+              />
+              {responseError ? <Text style={styles.errorText}>{responseError}</Text> : null}
             </>
           ) : null}
         </View>
@@ -211,5 +268,9 @@ const styles = StyleSheet.create({
   emptyDocsText: {
     ...typography.body,
     color: colors.textSecondary,
+  },
+  errorText: {
+    ...typography.small,
+    color: colors.danger,
   },
 });

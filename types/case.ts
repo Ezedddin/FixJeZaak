@@ -68,6 +68,14 @@ export interface LegalCase {
   timeline: CaseEvent[];
   nextAction: string;
   outcome?: CaseOutcome;
+  /** The other party's reply, as read by the backend. */
+  responseAnalysis?: {
+    outcome: 'toegewezen' | 'deels_toegewezen' | 'afgewezen' | 'onduidelijk';
+    summary: string;
+    reasons: string[];
+    nextSteps: string[];
+    sources?: Array<{ title: string; snippet: string; sourceUrl: string; sourceName: string }>;
+  };
   /** Id of the linked case in the FixJeZaak backend (agent, rules, approval
    * gate). Absent until linking succeeded (e.g. the backend was unreachable). */
   backendCaseId?: string;

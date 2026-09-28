@@ -1,8 +1,11 @@
 import { Tabs } from 'expo-router/js-tabs';
 
 import { TabBar } from '@/components/nav';
+import { useDeadlineReminders } from '@/hooks/useDeadlineReminders';
 
 export default function TabsLayout() {
+  useDeadlineReminders();
+
   return (
     <Tabs tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="index" options={{ title: 'Home' }} />

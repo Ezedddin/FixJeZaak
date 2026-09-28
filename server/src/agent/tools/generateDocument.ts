@@ -6,6 +6,7 @@ import { runRules } from '../../rules/engine.js';
 import type { CaseFacts } from '../../types.js';
 import { createPendingAction } from '../actions.js';
 import { callClaudeJSON } from '../claudeClient.js';
+import { evidenceSummaries } from '../evidence.js';
 import { ToolValidationError, type ToolDefinition } from './types.js';
 
 const schema = z.object({
@@ -66,6 +67,7 @@ export const generateDocumentTool: ToolDefinition<Input> = {
 
     const recipient = (facts[config.recipientField]?.value as string | undefined) ?? 'de wederpartij';
     const knowledge = knowledgeFor(kase.caseType);
+    const evidence = await evidenceSummaries(input.caseId);
 
     let paragraphs: string[];
     try {
@@ -73,7 +75,9 @@ export const generateDocumentTool: ToolDefinition<Input> = {
         system: `Je schrijft een formele, feitelijke Nederlandse brief namens de gebruiker: een ${config.letter.title.toLowerCase()} aan ${recipient}. ${config.letter.instructions}
 Gebruik UITSLUITEND de gegeven feiten en kennisbronnen. Verzin geen wetsartikelen of juridische gronden die niet in de meegegeven kennis staan, en noem geen feiten die niet zijn gegeven. Gegevens die ontbreken maar in een brief horen (zoals naam, adres of handtekening van de gebruiker) vul je niet in maar geef je aan als [INVULLEN: omschrijving].
 Als er geen relevante kennisbron is meegegeven, baseer de brief dan puur op de feiten, zonder een specifieke wettelijke grondslag te noemen. Antwoord als JSON: {"paragraphs": string[]} — elke alinea een apart element.`,
-        content: `Gevalideerde feiten van de zaak:\n${factsToText(facts, labels)}\n\nRelevante kennisbronnen:\n${
+        content: `Gevalideerde feiten van de zaak:\n${factsToText(facts, labels)}\n\n${
+          evidence.length > 0 ? `Bewijs dat de gebruiker heeft aangeleverd (mag als bijlage worden genoemd):\n${evidence.map((e) => `- ${e}`).join('\n')}\n\n` : ''
+        }Relevante kennisbronnen:\n${
           knowledge.length > 0
             ? knowledge.map((k) => `- ${k.snippet} (${k.sourceName})`).join('\n')
             : 'Geen relevante kennisbron gevonden — noem geen specifieke wettelijke termijn of grondslag.'

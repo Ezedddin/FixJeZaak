@@ -1,4 +1,3 @@
-import * as DocumentPicker from 'expo-document-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -6,7 +5,9 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Button, Card, LoadingState, ScreenHeader, StatusBadge } from '@/components/ui';
 import { colors, spacing, typography } from '@/constants/theme';
 import { caseService } from '@/services/caseService';
+import { backendClient } from '@/services/backendClient';
 import { documentService } from '@/services/documentService';
+import { pickReadableFile } from '@/services/filePicker';
 import { selectCaseById, useCasesStore } from '@/store/casesStore';
 import { useIntakeStore } from '@/store/intakeStore';
 import { generateId } from '@/utils/id';
@@ -51,16 +52,41 @@ export default function MissingEvidenceScreen() {
     router.push('/case/new/analysis');
   }
 
-  async function handleUpload() {
+  async function handleUpload(source: 'camera' | 'file') {
     if (!caseId) return;
-    const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
-    if (result.canceled) return;
-    const fileName = result.assets[0].name;
+    const picked = await pickReadableFile(source, 'Bewijs');
+    if (!picked) return;
+    if (!picked.ok) {
+      setError(picked.message);
+      return;
+    }
+    if (!backendCaseId) {
+      setError('Je bewijs kan nu niet worden opgeslagen. Controleer je internetverbinding en probeer het opnieuw.');
+      return;
+    }
+
+    setProcessing(true);
+    setError(null);
+    let uploaded;
+    try {
+      uploaded = await backendClient.uploadEvidence(backendCaseId, picked.file);
+    } catch {
+      setProcessing(false);
+      setError('Je bewijs kon niet worden geüpload. Controleer je internetverbinding en probeer het opnieuw.');
+      return;
+    }
+    if (!uploaded.readable) {
+      setProcessing(false);
+      setError('We konden dit bewijs niet goed lezen. Maak een duidelijkere foto of upload een PDF.');
+      return;
+    }
+
     const doc = documentService.createDocument({
-      name: fileName,
+      name: picked.file.filename,
       category: 'mijn_zaken',
       source: 'upload',
       caseId,
+      mimeType: picked.file.mimeType,
     });
     addDocument(caseId, { ...doc, status: 'klaar' });
     upsertEvidence(caseId, {
@@ -129,7 +155,8 @@ export default function MissingEvidenceScreen() {
             </View>
           ) : (
             <View style={styles.actions}>
-              <Button label="Upload bewijs" onPress={handleUpload} />
+              <Button label="Maak een foto van je bewijs" onPress={() => handleUpload('camera')} />
+              <Button label="Kies een bestand" variant="secondary" onPress={() => handleUpload('file')} />
               <Button label="Ik heb dit niet" onPress={handleSkip} variant="secondary" />
             </View>
           )}
