@@ -1,0 +1,100 @@
+// FixJeZaak backend data model.
+//
+// SQLite is used for local development / MVP — zero ops, single file DB.
+// Before production, switch `provider` to "postgresql" and point `url` at a
+// real database; the schema itself needs no changes to migrate.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// A Case is the persisted unit of work: one user problem, tracked from
+// intake through to a (human-approved) generated action. Conversation,
+// documents, and actions all hang off a Case so a user can return to it.
+model Case {
+  id            String   @id @default(cuid())
+  userId        String
+  caseType      String // "boete" for the traffic/parking-fine MVP; extensible later
+  status        String   @default("collecting_info")
+  // Raw, per-field extraction straight from documents — includes confidence
+  // and provenance. Never trusted directly for reasoning or document
+  // generation; only `facts` (below) is.
+  extractedData Json?
+  // Facts the system actually treats as true: user-provided corrections,
+  // and AI extractions that cleared the confidence bar. Each entry records
+  // its source so the UI/agent can always show provenance.
+  facts         Json?
+  // Latest output of the deterministic rule engine for this case.
+  ruleFlags     Json?
+  // Open questions the agent still needs answered before it can proceed.
+  questions     Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  messages  Message[]
+  documents Document[]
+  actions   Action[]
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  caseId    String
+  role      String // "user" | "assistant" | "tool"
+  content   String
+  // Structured record of any tool calls made/answered in this turn, kept
+  // for audit and for reconstructing agent context across requests.
+  toolCalls Json?
+  createdAt DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  caseId      String
+  filename    String
+  mimeType    String
+  storagePath String
+  // Raw extraction result for this specific document: fields + confidence +
+  // provenance, before rule validation or merging into Case.facts.
+  extracted   Json?
+  createdAt   DateTime @default(now())
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+// A consequential, user-facing action the agent has prepared (e.g. a draft
+// objection letter). Nothing here is ever "sent" automatically — status only
+// moves to "approved" via an explicit user-triggered endpoint that the LLM
+// cannot call itself.
+model Action {
+  id        String   @id @default(cuid())
+  caseId    String
+  type      String // "prepare_objection", extensible later
+  status    String   @default("draft") // draft -> pending_approval -> approved | rejected
+  payload   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+// A request from a user to talk to one of the FixJeZaak juristen. The jurist
+// follows up with the user directly; nothing is scheduled automatically.
+model Booking {
+  id             String   @id @default(cuid())
+  userId         String
+  professionalId String
+  option         String // "15min" | "30min" | "volledige_review"
+  name           String
+  email          String
+  phone          String?
+  question       String
+  status         String   @default("requested") // requested -> contacted -> done
+  createdAt      DateTime @default(now())
+}
