@@ -9,6 +9,7 @@ import type {
   EvidenceStatus,
   ExtractedField,
   GeneratedLegalDocument,
+  LegalCase,
   LegalDocument,
   RecommendedAction,
 } from '@/types';
@@ -29,6 +30,7 @@ interface IntakeState {
   caseId: string | null;
 
   startIntake: (input: { category: CaseCategory; title: string; description: string }) => void;
+  resumeFromCase: (legalCase: LegalCase) => void;
   addChatMessage: (message: ChatMessage) => void;
   markStepAnswered: (stepId: string) => void;
   setUploadedDocument: (doc: LegalDocument | null) => void;
@@ -66,6 +68,25 @@ export const useIntakeStore = create<IntakeState>()(
 
       startIntake: ({ category, title, description }) =>
         set({ ...initialState, category, title, description }),
+
+      // Rebuilds the wizard's working state from a stored case, so a case
+      // left halfway can be picked up again from its case screen.
+      resumeFromCase: (legalCase) => {
+        const uploadedDocument = [...legalCase.documents].reverse().find((d) => d.extractedFields?.length) ?? null;
+        set({
+          ...initialState,
+          caseId: legalCase.id,
+          category: legalCase.category,
+          title: legalCase.title,
+          description: legalCase.description,
+          uploadedDocument,
+          extractedFields: legalCase.reviewFields ?? uploadedDocument?.extractedFields ?? [],
+          analysis: legalCase.analysis ?? null,
+          recommendedActions: legalCase.recommendedActions,
+          selectedActionId: legalCase.selectedActionId ?? null,
+          generatedDocument: legalCase.generatedDocument ?? null,
+        });
+      },
 
       addChatMessage: (message) =>
         set((state) => ({ chatMessages: [...state.chatMessages, message] })),

@@ -1,6 +1,6 @@
 import type { Analysis, RecommendedAction } from './analysis';
 import type { Evidence } from './evidence';
-import type { GeneratedLegalDocument, LegalDocument } from './document';
+import type { ExtractedField, GeneratedLegalDocument, LegalDocument } from './document';
 
 export type CaseCategory =
   | 'boete'
@@ -68,6 +68,8 @@ export interface LegalCase {
   timeline: CaseEvent[];
   nextAction: string;
   outcome?: CaseOutcome;
+  /** The facts as the user last confirmed them on the review screen. */
+  reviewFields?: ExtractedField[];
   /** The other party's reply, as read by the backend. */
   responseAnalysis?: {
     outcome: 'toegewezen' | 'deels_toegewezen' | 'afgewezen' | 'onduidelijk';

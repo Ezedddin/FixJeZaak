@@ -58,6 +58,7 @@ export default function DocumentAnalysisScreen() {
       key ? extractedFields.find((f) => f.key === key)?.value.trim() || undefined : undefined;
     const deadline = parseDateInput(valueOf(info?.deadlineField) ?? '');
     patchCase(caseId, {
+      reviewFields: extractedFields.map((field) => ({ ...field, needsConfirmation: false })),
       counterparty: valueOf(info?.recipientField),
       ...(deadline ? { deadline } : {}),
     });

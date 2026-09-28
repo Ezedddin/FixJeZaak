@@ -10,7 +10,9 @@ import { colors, radius, shadow, spacing, typography } from '@/constants/theme';
 import { backendClient } from '@/services/backendClient';
 import { pickReadableFile } from '@/services/filePicker';
 import { useCasesStore, selectCaseById } from '@/store/casesStore';
+import { useIntakeStore } from '@/store/intakeStore';
 import { caseStatusMeta } from '@/utils/caseStatus';
+import { resumeRoute } from '@/utils/resumeCase';
 
 export default function CaseDashboardScreen() {
   const router = useRouter();
@@ -18,6 +20,7 @@ export default function CaseDashboardScreen() {
   const cases = useCasesStore((state) => state.cases);
   const markSubmitted = useCasesStore((state) => state.submitCase);
   const patchCase = useCasesStore((state) => state.patchCase);
+  const resumeFromCase = useIntakeStore((state) => state.resumeFromCase);
   const addTimelineEvent = useCasesStore((state) => state.addTimelineEvent);
   const [uploadingResponse, setUploadingResponse] = useState(false);
   const [responseError, setResponseError] = useState<string | null>(null);
@@ -68,6 +71,7 @@ export default function CaseDashboardScreen() {
   }
 
   const statusMeta = caseStatusMeta(legalCase.status);
+  const resumeTarget = resumeRoute(legalCase);
   const ctaTarget = nextActionTarget(legalCase.id, legalCase.status);
 
   return (
@@ -91,6 +95,15 @@ export default function CaseDashboardScreen() {
           <Text style={styles.nextActionText}>{legalCase.nextAction}</Text>
           {ctaTarget ? (
             <Button label={ctaTarget.label} onPress={() => router.push(ctaTarget.href)} />
+          ) : null}
+          {resumeTarget ? (
+            <Button
+              label="Ga verder met je zaak"
+              onPress={() => {
+                resumeFromCase(legalCase);
+                router.push(resumeTarget);
+              }}
+            />
           ) : null}
           {legalCase.status === 'action_required' && legalCase.generatedDocument?.status === 'goedgekeurd' ? (
             <>
